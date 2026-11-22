@@ -762,30 +762,35 @@ async function quietJson(
       signal,
     });
     onProgress?.("requesting");
-    return controllerRequest((requestSignal) => spindle.generate.quiet({
-      type: "quiet",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: prompt },
-      ],
-      parameters: {
-        temperature: settings.controllerTemperature,
-        // A blank override deliberately selects the connection default and keeps
-        // legacy preset model fields from replacing it inside quiet generation.
-        model: settings.controllerModel?.trim() ?? "",
-        ...toolChoiceParameters(connection.provider),
-      },
-      tools: [{
-        name: schemaName,
-        description: "Submit the complete structured LumiMind result exactly once.",
-        parameters: schema,
-      }],
-      reasoning: { source: "off" },
-      ...(connection.id ? { connection_id: connection.id } : {}),
-      ...(chatId ? { chat_id: chatId } : {}),
-      userId,
-      signal: requestSignal,
-    } as unknown as Parameters<typeof spindle.generate.quiet>[0]), signal, (settings.controllerTimeoutSeconds ?? 120) * 1000);
+    try {
+      return controllerRequest((requestSignal) => spindle.generate.quiet({
+        type: "quiet",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt },
+        ],
+        parameters: {
+          temperature: settings.controllerTemperature,
+          // A blank override deliberately selects the connection default and keeps
+          // legacy preset model fields from replacing it inside quiet generation.
+          model: settings.controllerModel?.trim() ?? "",
+          ...toolChoiceParameters(connection.provider),
+        },
+        tools: [{
+          name: schemaName,
+          description: "Submit the complete structured LumiMind result exactly once.",
+          parameters: schema,
+        }],
+        reasoning: { source: "off" },
+        ...(connection.id ? { connection_id: connection.id } : {}),
+        ...(chatId ? { chat_id: chatId } : {}),
+        userId,
+        signal: requestSignal,
+      } as unknown as Parameters<typeof spindle.generate.quiet>[0]), signal, (settings.controllerTimeoutSeconds ?? 120) * 1000);
+    } catch (e: any) {
+      console.error(`[LumiMind] activateMindLens failed:`, e.message, e.stack)
+      throw e
+    }
   });
   const object = asObject(result);
   const content = sanitizeControllerText(text(object.content));
