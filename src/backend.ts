@@ -372,33 +372,39 @@ async function sendState(userId: string, chatId?: string | null, characterId?: s
 async function buildDeveloperDiagnostics(userId: string, requestedChatId?: string | null): Promise<unknown> {
   const active = activeChats.get(userId) ?? { chatId: null, characterId: null };
   const chatId = requestedChatId ?? active.chatId;
-  const [settings, connections, timeline, transcript, character, persona] = await Promise.all([
-    getSettings(userId),
-    hasPermission("generation") ? spindle.connections.list(userId).catch(() => []) : Promise.resolve([]),
-    chatId ? getTimeline(chatId, userId).catch(() => null) : Promise.resolve(null),
-    chatId && hasPermission("chat_mutation")
-      ? (spindle as unknown as { chat: { getMessages(chatId: string, userId?: string): Promise<unknown> } }).chat.getMessages(chatId, userId).catch(() => null)
-      : Promise.resolve(null),
-    active.characterId && hasPermission("characters") ? spindle.characters.get(active.characterId, userId).catch(() => null) : Promise.resolve(null),
-    hasPermission("personas") ? spindle.personas.getActive(userId).catch(() => null) : Promise.resolve(null),
-  ]);
-  return redactDiagnosticCredentials({
-    generatedAt: new Date().toISOString(),
-    userId,
-    activeContext: { chatId, characterId: active.characterId },
-    permissions: currentPermissions(),
-    settings,
-    connections,
-    timeline,
-    transcript,
-    activeCharacter: character,
-    activePersona: persona,
-    controllerRawResponses: chatId ? (controllerDebugResponses.get(cacheKey(userId, chatId)) ?? []) : [],
-    lastControllerRun: getLastControllerRun(userId),
-    analysisProgress: chatId ? analysisProgress.get(cacheKey(userId, chatId)) ?? null : null,
-    lastInjectionProjection: chatId ? (lastInjectionProjections.get(cacheKey(userId, chatId)) ?? null) : null,
-    unavailable: ["API credential values", "raw controller responses created before the current extension runtime"],
-  });
+  try {
+    const [settings, connections, timeline, transcript, character, persona] = await Promise.all([
+      getSettings(userId),
+      hasPermission("generation") ? spindle.connections.list(userId).catch(() => []) : Promise.resolve([]),
+      chatId ? getTimeline(chatId, userId).catch(() => null) : Promise.resolve(null),
+      chatId && hasPermission("chat_mutation")
+        ? (spindle as unknown as { chat: { getMessages(chatId: string, userId?: string): Promise<unknown> } }).chat.getMessages(chatId, userId).catch(() => null)
+        : Promise.resolve(null),
+      active.characterId && hasPermission("characters") ? spindle.characters.get(active.characterId, userId).catch(() => null) : Promise.resolve(null),
+      hasPermission("personas") ? spindle.personas.getActive(userId).catch(() => null) : Promise.resolve(null),
+    ]);
+
+    return redactDiagnosticCredentials({
+      generatedAt: new Date().toISOString(),
+      userId,
+      activeContext: { chatId, characterId: active.characterId },
+      permissions: currentPermissions(),
+      settings,
+      connections,
+      timeline,
+      transcript,
+      activeCharacter: character,
+      activePersona: persona,
+      controllerRawResponses: chatId ? (controllerDebugResponses.get(cacheKey(userId, chatId)) ?? []) : [],
+      lastControllerRun: getLastControllerRun(userId),
+      analysisProgress: chatId ? analysisProgress.get(cacheKey(userId, chatId)) ?? null : null,
+      lastInjectionProjection: chatId ? (lastInjectionProjections.get(cacheKey(userId, chatId)) ?? null) : null,
+      unavailable: ["API credential values", "raw controller responses created before the current extension runtime"],
+    });
+  } catch (e: any) {
+    console.error(`[LumiMind] activateMindLens failed:`, e.message, e.stack)
+    throw e;
+  }
 }
 
 function normalizeChatMessages(value: unknown): ChatMessageLike[] {
