@@ -2299,30 +2299,35 @@ async function quietJson(prompt, systemPrompt, schemaName, schema, settings, use
       signal
     });
     onProgress?.("requesting");
-    return controllerRequest((requestSignal) => spindle.generate.quiet({
-      type: "quiet",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: prompt }
-      ],
-      parameters: {
-        temperature: settings.controllerTemperature,
-        // A blank override deliberately selects the connection default and keeps
-        // legacy preset model fields from replacing it inside quiet generation.
-        model: settings.controllerModel?.trim() ?? "",
-        ...toolChoiceParameters(connection.provider)
-      },
-      tools: [{
-        name: schemaName,
-        description: "Submit the complete structured LumiMind result exactly once.",
-        parameters: schema
-      }],
-      reasoning: { source: "off" },
-      ...connection.id ? { connection_id: connection.id } : {},
-      ...chatId ? { chat_id: chatId } : {},
-      userId,
-      signal: requestSignal
-    }), signal, (settings.controllerTimeoutSeconds ?? 120) * 1e3);
+    try {
+      return controllerRequest((requestSignal) => spindle.generate.quiet({
+        type: "quiet",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt }
+        ],
+        parameters: {
+          temperature: settings.controllerTemperature,
+          // A blank override deliberately selects the connection default and keeps
+          // legacy preset model fields from replacing it inside quiet generation.
+          model: settings.controllerModel?.trim() ?? "",
+          ...toolChoiceParameters(connection.provider)
+        },
+        tools: [{
+          name: schemaName,
+          description: "Submit the complete structured LumiMind result exactly once.",
+          parameters: schema
+        }],
+        reasoning: { source: "off" },
+        ...connection.id ? { connection_id: connection.id } : {},
+        ...chatId ? { chat_id: chatId } : {},
+        userId,
+        signal: requestSignal
+      }), signal, (settings.controllerTimeoutSeconds ?? 120) * 1e3);
+    } catch (e) {
+      console.error(`[LumiMind] activateMindLens failed:`, e.message, e.stack);
+      throw e;
+    }
   });
   const object = asObject2(result);
   const content = sanitizeControllerText(text(object.content));
@@ -3090,6 +3095,7 @@ function redactDiagnosticCredentials(value) {
 }
 
 // src/backend.ts
+spindle.log.info("[LumiMind] fork loaded");
 var INTERCEPTOR_PRIORITY = 125;
 var ANALYSIS_BATCH_SIZE = 6;
 var RECONCILE_DEBOUNCE_MS = 650;
@@ -3331,31 +3337,36 @@ async function sendState(userId, chatId, characterId) {
 async function buildDeveloperDiagnostics(userId, requestedChatId) {
   const active = activeChats.get(userId) ?? { chatId: null, characterId: null };
   const chatId = requestedChatId ?? active.chatId;
-  const [settings, connections, timeline, transcript, character, persona] = await Promise.all([
-    getSettings(userId),
-    hasPermission("generation") ? spindle.connections.list(userId).catch(() => []) : Promise.resolve([]),
-    chatId ? getTimeline(chatId, userId).catch(() => null) : Promise.resolve(null),
-    chatId && hasPermission("chat_mutation") ? spindle.chat.getMessages(chatId, userId).catch(() => null) : Promise.resolve(null),
-    active.characterId && hasPermission("characters") ? spindle.characters.get(active.characterId, userId).catch(() => null) : Promise.resolve(null),
-    hasPermission("personas") ? spindle.personas.getActive(userId).catch(() => null) : Promise.resolve(null)
-  ]);
-  return redactDiagnosticCredentials({
-    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
-    userId,
-    activeContext: { chatId, characterId: active.characterId },
-    permissions: currentPermissions(),
-    settings,
-    connections,
-    timeline,
-    transcript,
-    activeCharacter: character,
-    activePersona: persona,
-    controllerRawResponses: chatId ? controllerDebugResponses.get(cacheKey(userId, chatId)) ?? [] : [],
-    lastControllerRun: getLastControllerRun(userId),
-    analysisProgress: chatId ? analysisProgress.get(cacheKey(userId, chatId)) ?? null : null,
-    lastInjectionProjection: chatId ? lastInjectionProjections.get(cacheKey(userId, chatId)) ?? null : null,
-    unavailable: ["API credential values", "raw controller responses created before the current extension runtime"]
-  });
+  try {
+    const [settings, connections, timeline, transcript, character, persona] = await Promise.all([
+      getSettings(userId),
+      hasPermission("generation") ? spindle.connections.list(userId).catch(() => []) : Promise.resolve([]),
+      chatId ? getTimeline(chatId, userId).catch(() => null) : Promise.resolve(null),
+      chatId && hasPermission("chat_mutation") ? spindle.chat.getMessages(chatId, userId).catch(() => null) : Promise.resolve(null),
+      active.characterId && hasPermission("characters") ? spindle.characters.get(active.characterId, userId).catch(() => null) : Promise.resolve(null),
+      hasPermission("personas") ? spindle.personas.getActive(userId).catch(() => null) : Promise.resolve(null)
+    ]);
+    return redactDiagnosticCredentials({
+      generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      userId,
+      activeContext: { chatId, characterId: active.characterId },
+      permissions: currentPermissions(),
+      settings,
+      connections,
+      timeline,
+      transcript,
+      activeCharacter: character,
+      activePersona: persona,
+      controllerRawResponses: chatId ? controllerDebugResponses.get(cacheKey(userId, chatId)) ?? [] : [],
+      lastControllerRun: getLastControllerRun(userId),
+      analysisProgress: chatId ? analysisProgress.get(cacheKey(userId, chatId)) ?? null : null,
+      lastInjectionProjection: chatId ? lastInjectionProjections.get(cacheKey(userId, chatId)) ?? null : null,
+      unavailable: ["API credential values", "raw controller responses created before the current extension runtime"]
+    });
+  } catch (e) {
+    spindle.log.error(`[LumiMind] activateMindLens failed:` + e.message + " " + e.stack);
+    throw e;
+  }
 }
 function normalizeChatMessages(value) {
   if (!Array.isArray(value)) return [];
@@ -4028,22 +4039,27 @@ spindle.registerInterceptor(async (messages, context) => {
 }, INTERCEPTOR_PRIORITY);
 var onEvent = spindle.on;
 onEvent("GENERATION_STARTED", (payload, eventUserId) => {
-  const chatId = extractChatId(payload);
-  const userId = resolveUserId(chatId, eventUserId);
-  const generationId = readString(payload, ["generationId", "generation_id"]);
-  if (!chatId || !userId || !generationId) return;
-  rememberChatUser(chatId, userId);
-  const context = {
-    generationId,
-    chatId,
-    characterId: extractCharacterId(payload),
-    characterName: readString(payload, ["characterName", "character_name"]),
-    generationType: extractGenerationType(payload),
-    userId
-  };
-  generationContexts.set(generationId, context);
-  latestGenerationByChat.set(cacheKey(userId, chatId), context);
-  suspendReconciliationForGeneration(context);
+  try {
+    const chatId = extractChatId(payload);
+    const userId = resolveUserId(chatId, eventUserId);
+    const generationId = readString(payload, ["generationId", "generation_id"]);
+    if (!chatId || !userId || !generationId) return;
+    rememberChatUser(chatId, userId);
+    const context = {
+      generationId,
+      chatId,
+      characterId: extractCharacterId(payload),
+      characterName: readString(payload, ["characterName", "character_name"]),
+      generationType: extractGenerationType(payload),
+      userId
+    };
+    generationContexts.set(generationId, context);
+    latestGenerationByChat.set(cacheKey(userId, chatId), context);
+    suspendReconciliationForGeneration(context);
+  } catch (e) {
+    spindle.log.error(`[LumiMind] activateMindLens failed:` + e.message + " " + e.stack);
+    throw e;
+  }
 });
 onEvent("GENERATION_ENDED", (payload, eventUserId) => {
   const generationId = readString(payload, ["generationId", "generation_id"]);

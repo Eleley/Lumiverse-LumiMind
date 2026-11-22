@@ -75,6 +75,8 @@ import {
   type TimelineDatabaseArchiveV1,
 } from "./types";
 
+spindle.log.info("[LumiMind] fork loaded")
+
 const INTERCEPTOR_PRIORITY = 125;
 const ANALYSIS_BATCH_SIZE = 6;
 const RECONCILE_DEBOUNCE_MS = 650;
@@ -402,7 +404,7 @@ async function buildDeveloperDiagnostics(userId: string, requestedChatId?: strin
       unavailable: ["API credential values", "raw controller responses created before the current extension runtime"],
     });
   } catch (e: any) {
-    console.error(`[LumiMind] activateMindLens failed:`, e.message, e.stack)
+    spindle.log.error(`[LumiMind] activateMindLens failed:` + e.message + " " + e.stack);
     throw e;
   }
 }
@@ -1151,7 +1153,7 @@ onEvent("GENERATION_STARTED", (payload, eventUserId) => {
     latestGenerationByChat.set(cacheKey(userId, chatId), context);
     suspendReconciliationForGeneration(context);
   } catch (e: any) {
-    console.error(`[LumiMind] GENERATION_STARTED handler failed:`, e.message, e.stack)
+    spindle.log.error(`[LumiMind] activateMindLens failed:` + e.message + " " + e.stack)
     throw e
   }
 });
