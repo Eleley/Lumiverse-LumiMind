@@ -1127,22 +1127,27 @@ spindle.registerInterceptor(async (messages, context) => {
 const onEvent = spindle.on as unknown as (event: string, handler: (payload: unknown, userId?: string) => void) => () => void;
 
 onEvent("GENERATION_STARTED", (payload, eventUserId) => {
-  const chatId = extractChatId(payload);
-  const userId = resolveUserId(chatId, eventUserId);
-  const generationId = readString(payload, ["generationId", "generation_id"]);
-  if (!chatId || !userId || !generationId) return;
-  rememberChatUser(chatId, userId);
-  const context: GenerationContext = {
-    generationId,
-    chatId,
-    characterId: extractCharacterId(payload),
-    characterName: readString(payload, ["characterName", "character_name"]),
-    generationType: extractGenerationType(payload),
-    userId,
-  };
-  generationContexts.set(generationId, context);
-  latestGenerationByChat.set(cacheKey(userId, chatId), context);
-  suspendReconciliationForGeneration(context);
+  try {
+    const chatId = extractChatId(payload);
+    const userId = resolveUserId(chatId, eventUserId);
+    const generationId = readString(payload, ["generationId", "generation_id"]);
+    if (!chatId || !userId || !generationId) return;
+    rememberChatUser(chatId, userId);
+    const context: GenerationContext = {
+      generationId,
+      chatId,
+      characterId: extractCharacterId(payload),
+      characterName: readString(payload, ["characterName", "character_name"]),
+      generationType: extractGenerationType(payload),
+      userId,
+    };
+    generationContexts.set(generationId, context);
+    latestGenerationByChat.set(cacheKey(userId, chatId), context);
+    suspendReconciliationForGeneration(context);
+  } catch (e: any) {
+    console.error(`[LumiMind] GENERATION_STARTED handler failed:`, e.message, e.stack)
+    throw e
+  }
 });
 
 onEvent("GENERATION_ENDED", (payload, eventUserId) => {
