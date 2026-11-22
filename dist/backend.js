@@ -3392,7 +3392,7 @@ function normalizeChatMessages(value) {
 }
 async function getChatMessages(chatId, userId) {
   const api = spindle.chat;
-  return sortMessages(normalizeChatMessages(await api.getMessages(chatId, userId)));
+  return sortMessages(normalizeChatMessages(await api.getMessages(chatId, {})));
 }
 function seedFromCharacter(character) {
   const extension = asObject3(character.extensions?.[EXTENSION_KEY]);
@@ -4281,6 +4281,7 @@ spindle.onFrontendMessage(async (payload, userId) => {
           chatId: message.chatId,
           message: error instanceof Error ? error.message : "LumiMind could not inspect this chat's history."
         }, userId);
+        spindle.log.error(error instanceof Error ? error.message : "Meh");
       }
       return;
     }

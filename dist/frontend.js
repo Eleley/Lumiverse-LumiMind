@@ -820,9 +820,10 @@ function setup(ctx) {
   function send(message) {
     try {
       const activeConnectionId = connections?.getActive().activeProfileId;
+      console.log(message);
       ctx.sendToBackend(activeConnectionId === void 0 ? message : { ...message, activeConnectionId });
     } catch (error) {
-      showNotice("error", error instanceof Error ? error.message : "LumiMind could not reach its backend.");
+      console.log("error", error instanceof Error ? error.message : "LumiMind could not reach its backend.");
     }
   }
   function showNotice(tone, message, ttl = 7e3) {
@@ -1683,7 +1684,6 @@ function setup(ctx) {
     );
     copy.append(points);
     const button = textButton("Activate Mind Lens", async () => {
-      console.log("Clicked button");
       if (!timeline || button.disabled) return;
       button.disabled = true;
       const originalLabel = button.textContent;
@@ -1695,6 +1695,7 @@ function setup(ctx) {
           button.textContent = "Checking history\u2026";
         }
         const { messageCount, recentMessageLimit } = await requestActivationPreview(timeline.chatId);
+        console.log("Clicked button");
         const historyMode = messageCount >= 50 ? await chooseActivationHistory(messageCount, recentMessageLimit) : "full";
         if (!historyMode) return;
         send({
@@ -1704,7 +1705,7 @@ function setup(ctx) {
           recentMessageLimit: historyMode === "recent" ? recentMessageLimit : void 0
         });
       } catch (error) {
-        showNotice("error", error instanceof Error ? error.message : "LumiMind could not inspect this chat's history.");
+        console.log("error", error instanceof Error ? error.message : "LumiMind could not inspect this chat's history.");
       } finally {
         button.disabled = false;
         button.textContent = originalLabel;

@@ -265,9 +265,10 @@ export function setup(ctx: SpindleFrontendContext): () => void {
   function send(message: FrontendToBackend): void {
     try {
       const activeConnectionId = connections?.getActive().activeProfileId;
-      ctx.sendToBackend(activeConnectionId === undefined ? message : { ...message, activeConnectionId });
+      console.log(message);
+      ctx.sendToBackend(activeConnectionId === undefined ? message : { ...message, activeConnectionId, });
     } catch (error) {
-      showNotice("error", error instanceof Error ? error.message : "LumiMind could not reach its backend.");
+      console.log("error", error instanceof Error ? error.message : "LumiMind could not reach its backend.");
     }
   }
 
@@ -1153,7 +1154,6 @@ export function setup(ctx: SpindleFrontendContext): () => void {
     );
     copy.append(points);
     const button = textButton("Activate Mind Lens", async () => {
-      console.log("Clicked button");
       if (!timeline || button.disabled) return;
       button.disabled = true;
       const originalLabel = button.textContent;
@@ -1165,6 +1165,7 @@ export function setup(ctx: SpindleFrontendContext): () => void {
           button.textContent = "Checking history…";
         }
         const { messageCount, recentMessageLimit } = await requestActivationPreview(timeline.chatId);
+        console.log("Clicked button");
         const historyMode = messageCount >= 50
           ? await chooseActivationHistory(messageCount, recentMessageLimit)
           : "full";
@@ -1176,7 +1177,7 @@ export function setup(ctx: SpindleFrontendContext): () => void {
           recentMessageLimit: historyMode === "recent" ? recentMessageLimit : undefined,
         });
       } catch (error) {
-        showNotice("error", error instanceof Error ? error.message : "LumiMind could not inspect this chat's history.");
+        console.log("error", error instanceof Error ? error.message : "LumiMind could not inspect this chat's history.");
       } finally {
         button.disabled = false;
         button.textContent = originalLabel;

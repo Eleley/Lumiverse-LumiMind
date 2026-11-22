@@ -437,8 +437,8 @@ function normalizeChatMessages(value: unknown): ChatMessageLike[] {
 }
 
 async function getChatMessages(chatId: string, userId: string): Promise<ChatMessageLike[]> {
-  const api = (spindle as unknown as { chat: { getMessages(chatId: string, userId?: string): Promise<unknown> } }).chat;
-  return sortMessages(normalizeChatMessages(await api.getMessages(chatId, userId)));
+  const api = (spindle as unknown as { chat: { getMessages(chatId: string, options?: object): Promise<unknown> } }).chat;
+  return sortMessages(normalizeChatMessages(await api.getMessages(chatId, {})));
 }
 
 function seedFromCharacter(character: CharacterDTO): MindSeedV1 {
@@ -1372,6 +1372,8 @@ spindle.onFrontendMessage(async (payload, userId) => {
           chatId: message.chatId,
           message: error instanceof Error ? error.message : "LumiMind could not inspect this chat's history.",
         }, userId);
+
+        spindle.log.error(error instanceof Error ? error.message : "Meh")
       }
       return;
     }
