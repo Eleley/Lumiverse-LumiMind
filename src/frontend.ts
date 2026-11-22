@@ -1153,6 +1153,7 @@ export function setup(ctx: SpindleFrontendContext): () => void {
     );
     copy.append(points);
     const button = textButton("Activate Mind Lens", async () => {
+      console.log("Clicked button");
       if (!timeline || button.disabled) return;
       button.disabled = true;
       const originalLabel = button.textContent;
